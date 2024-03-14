@@ -1,0 +1,163 @@
+import pygame
+import sys
+from random import randint, choice
+
+# Initialize Pygame
+pygame.init()
+
+# Set up display
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Endless Platform Game")
+
+# Set up colors
+GREEN = (0, 128, 0)
+BROWN = (139, 69, 19)
+RED = (255, 0, 0)
+WHITE = (255, 255, 255)
+
+# Game variables
+platform_height = HEIGHT - 50
+platform_width = 200  # Width of a single platform segment
+ball_radius = 20
+ball_speed_x = 5
+gravity = 0.5
+jump_height = -15  # Increased jump height for double jump
+camera_x = 0
+obstacles = []
+obstacle_types = ['single', 'double']  # Types of obstacles
+jump_delay = 700  # Delay between jumps in milliseconds
+last_jump_time = 0  # Time of the last jump
+
+# Load smiley face image
+smiley_ball = pygame.image.load('smiley.png')
+smiley_ball = pygame.transform.scale(smiley_ball, (ball_radius*2, ball_radius*2))
+
+# Function to draw the platform ahead of the player
+def draw_platform(x, y, width, height, camera_x):
+    num_segments = (WIDTH // width) + 2
+    start_x = x - (camera_x % width)
+    for i in range(num_segments):
+        pygame.draw.rect(screen, GREEN, (start_x + (i * width), y, width, 10))
+        pygame.draw.rect(screen, BROWN, (start_x + (i * width), y + 10, width, height - 10))
+
+# Function to generate obstacles
+def generate_obstacles(camera_x, obstacles, obstacle_types):
+    while len(obstacles) == 0 or camera_x - obstacles[-1][0] >= randint(250, 350):
+        obstacle_type = choice(obstacle_types)
+        obstacle_x = camera_x + WIDTH + randint(100, 200)  # Position off-screen to the right
+        obstacle_y = platform_height - 35
+        obstacle_width = 20 if obstacle_type == 'single' else 40
+        obstacle_height = 35 if obstacle_type == 'single' else 70  # 2-block high obstacle
+        obstacles.append([obstacle_x, obstacle_y, obstacle_width, obstacle_height, obstacle_type])
+
+# Function to draw obstacles
+def draw_obstacles(obstacles, camera_x):
+    for obstacle in obstacles:
+        pygame.draw.rect(screen, RED, (obstacle[0] - camera_x, obstacle[1], obstacle[2], obstacle[3]))
+
+# Function to check collision and reset player position
+def check_collision(ball_rect, obstacles, ball_start_y):
+    for obstacle in obstacles:
+        if ball_rect.colliderect(pygame.Rect(obstacle[0], obstacle[1], obstacle[2], obstacle[3])):
+            return True, ball_start_y  # Reset to start position on collision
+    return False, ball_rect.y
+
+# Function to create button
+def create_button(text, center_position):
+    font = pygame.font.Font(None, 72)
+    text_surf = font.render(text, True, WHITE)
+    text_rect = text_surf.get_rect(center=center_position)
+    pygame.draw.rect(screen, RED, text_rect.inflate(20, 10))
+    screen.blit(text_surf, text_rect)
+    return text_rect
+
+# Function to display timer
+def display_timer(start_time, position):
+    current_time = pygame.time.get_ticks()
+    elapsed_time = (current_time - start_time) // 1000  # Convert milliseconds to seconds
+    font = pygame.font.Font(None, 36)
+    timer_surf = font.render(f'Time: {elapsed_time}', True, WHITE)
+    timer_rect = timer_surf.get_rect(center=position)
+    screen.blit(timer_surf, timer_rect)
+
+# Main menu loop
+def main_menu():
+    running = True
+    while running:
+        screen.fill(GREEN)
+        
+        # Draw the "Start Game" button
+        start_button_rect = create_button('Start Game', (WIDTH // 2, HEIGHT // 2))
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if start_button_rect.collidepoint(event.pos):
+                    # Start the game
+                    game_loop()
+
+        # Display the timer below the "Start Game" button
+        display_timer(pygame.time.get_ticks(), (WIDTH // 2, HEIGHT // 2 + 100))
+
+        pygame.display.flip()
+
+# Main game loop
+def game_loop():
+    ball_x = WIDTH // 2
+    ball_y = platform_height - ball_radius
+    ball_speed_y = 0
+    camera_x = 0
+    running = True
+    on_ground = True
+    last_jump_time = pygame.time.get_ticks()  # Initialize the last jump time
+    start_time = pygame.time.get_ticks()  # Start time for the timer
+
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            camera_x -= ball_speed_x
+        if keys[pygame.K_RIGHT]:
+            camera_x += ball_speed_x
+        if keys[pygame.K_UP] and on_ground and (pygame.time.get_ticks() - last_jump_time > jump_delay):
+            ball_speed_y = jump_height
+            on_ground = False
+            last_jump_time = pygame.time.get_ticks()
+
+        ball_speed_y += gravity
+        ball_y += ball_speed_y
+        if ball_y >= platform_height - ball_radius:
+            ball_y = platform_height - ball_radius
+            ball_speed_y = 0
+            on_ground = True
+
+        screen.fill((173, 216, 230))  # Light blue background
+        draw_platform(0, platform_height, platform_width, HEIGHT - platform_height, camera_x)
+        generate_obstacles(camera_x, obstacles, obstacle_types)
+        draw_obstacles(obstacles, camera_x)
+        screen.blit(smiley_ball, (ball_x - ball_radius, ball_y - ball_radius))
+
+        # Check for collisions and reset position if needed
+        collision, ball_y = check_collision(pygame.Rect(ball_x - ball_radius, ball_y - ball_radius, ball_radius * 2, ball_radius * 2), obstacles, platform_height - ball_radius)
+        if collision:
+            # Reset the ball's position to the starting point
+            ball_y = platform_height - ball_radius
+            on_ground = True
+
+        # Display the timer
+        display_timer(start_time, (WIDTH // 2, HEIGHT // 2 - 50))
+
+        pygame.display.flip()
+
+    pygame.quit()
+    sys.exit()
+
+# Start the game with the menu
+main_menu()
